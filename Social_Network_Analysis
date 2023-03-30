@@ -1,0 +1,269 @@
+---
+title: "Social_Network_Methods"
+output: html_document
+---
+
+```{r}
+library("readxl")
+library("writexl")
+library("dplyr")
+library("tidyr")
+library("igraph")
+d1920<-read_excel("Hsiaolin.xlsx", sheet = "2019-2020")
+
+```
+
+```{r}
+# ****filter 6,7 grades for 18 data and 7,8 grades for 19 data****
+d19<-filter(d1920, d1920$GradeLevel==7 ) 
+
+# ******take only math courses*****
+#sort(unique(d18$CourseName))
+# d18<-filter(d18, CourseName=="Combination Math" | CourseName=="Math Enrichment" | CourseName=="Math 6" | CourseName=="Math 7" | CourseName=="Math 8" | CourseName=="Algebra 1" | CourseName=="Math 6 Accelerated" | CourseName=="Math 8 Accelerated/HS Algebra 1")
+
+
+#****Filter only T3
+d19<-filter(d19, d19$GradingTerm=="T3")
+
+# Take only Kennedy
+Network<-filter(d19, d19$SchoolName=="Kennedy Middle School")
+
+```
+
+"Roy Cloud Elementary School" "North Star Academy"          "Kennedy Middle School"       "Clifford Elementary School"  "McKinley Middle School"     
+[6] "Hoover Elementary School"    "Roosevelt Elementary School" "Garfield Elementary School" 
+
+```{r}
+Network$ankap="_"
+Network$CourseSec<- paste(Network$CourseName, Network$ankap, Network$SectionID)
+Network <- Network[order(Network$StudentNumber),]
+
+# Create Network form
+Net19 <-Network %>% select(StudentNumber, CourseSec)
+
+Net19$N<-1
+
+Net19<-Net19 %>%
+  pivot_wider(names_from = CourseSec, values_from = N, values_fill = 0) # list(col_name = function_name)
+# Create Affil Variable
+
+affil19<-as.matrix(Net19[,-c(1)])
+Net19<-as.matrix(Net19)
+rownames(affil19)=Net19[,1]
+
+#Make attrib variable
+
+Net_19n<-data.frame(Net19)
+Net_attrib19 <-select(d19, StudentNumber, AcademicYear, SchoolName, GradeLevel, Status)
+length(which(duplicated(Net_attrib19)))
+Net_dup19<-Net_attrib19[!duplicated(Net_attrib19),]
+Net_wdf19<-Net_19n %>% select(StudentNumber)
+attrib19<-merge(Net_wdf19, Net_dup19, by="StudentNumber")
+
+affil<-affil19
+attrib<-attrib19
+```
+  
+```{r}
+affil_net=graph_from_incidence_matrix(affil, mode="all")
+type=vertex_attr(affil_net, "type") 
+table(type)
+
+V(affil_net)$color[type==FALSE]=rgb(red=1, blue=0, 
+                                          green=0, alpha=.5)
+V(affil_net)$color[type==TRUE]=rgb(red=0, blue=1,
+                                         green=0, alpha=.5)
+
+#setting label to student id or name of club:
+V(affil_net)$label=V(affil_net)$name 
+V(affil_net)$label.color=rgb(0, 0, 0, 1) #set the color of the labels
+V(affil_net)$label.cex=.4 #make the labels of the nodes a bit smaller
+V(affil_net)$size=6 #set size of nodes to 6
+#set frame of nodes to match color of nodes:
+V(affil_net)$frame.color= NA
+# V(affil_net)$color 
+E(affil_net)$color=rgb(.5, .5, 0, .2)
+layout = layout_with_fr(affil_net, grid ="nogrid")
+
+pdf("magact_stdnt_actvts.pdf")
+plot(affil_net, layout=layout)
+dev.off() 
+plot(affil_net, layout=layout)
+
+```
+#affil_net
+# $color=if (attrib$Status=="LTEL", "red", else if attrib$Status[i]=="STEL", "green", "blue")
+# cols=recode(attrib$Status, "c('LTEL')='blue'; else='white'")
+# V(g)$color <- ifelse(cs$membership==0, "lightblue", "green")
+
+```{r}
+degree0F=which(degree(affil_net)==0)
+
+affil_net_noisolates=delete_vertices(affil_net, degree0F)
+type_noisolates=vertex_attr(affil_net_noisolates, "type")
+table(type_noisolates)
+#taking off the labels for the students:
+V(affil_net_noisolates)$label[type_noisolates==FALSE]=NA  #setting color of students:
+
+# V(affil_net_noisolates)$color[type_noisolates==FALSE]=rgb(1, 0, 0, .1)
+# V(affil_net_noisolates)$color<-"blue"
+# V(affil_net_noisolates)$color[attrib$Status=="LTEL"]<-"red"
+
+V(affil_net_noisolates)[attrib$Status=="LTEL"]$color<-"red"
+V(affil_net_noisolates)[attrib$Status=="STEL"]$color<-"orange"
+V(affil_net_noisolates)[attrib$Status=="RFEP"]$color<-"yellow"
+V(affil_net_noisolates)[attrib$Status=="Not-EL"]$color<-"green"
+
+
+# V(affil_net_noisolates)$color[affil[0,]]<-"blue"
+
+# V(affil_net)$color[type==TRUE]= "blue"
+#rgb(red=0, blue=1, green=0, alpha=.5)
+V(affil_net_noisolates)$color[type_noisolates==TRUE]=rgb(0, 0, 1, 1)
+
+#making students nodes smaller:
+V(affil_net_noisolates)$size[type_noisolates==FALSE]=2 
+E(affil_net_noisolates)$width=.3
+E(affil_net_noisolates)$color=rgb(0.5, 0.5, 0.5, 0.3)
+pdf("magact_stdnt_actvts_layout_with_kk.pdf")
+plot(affil_net_noisolates, layout=layout_with_kk)
+dev.off()
+plot(affil_net_noisolates, layout=layout_with_kk)
+
+```
+
+```{r}
+# V(affil_net_noisolates)$color[affil[0,]]<-"blue"
+#V(affil_net)$color[type==TRUE]= "blue"
+#rgb(red=0, blue=1, green=0, alpha=.5)
+V(affil_net_noisolates)$color[type_noisolates==TRUE]=rgb(0, 0, 1, 1)
+pdf("magact_stdnt_actvts_layout_with_fr.pdf")
+plot(affil_net_noisolates, layout=layout_with_fr)
+dev.off()
+plot(affil_net_noisolates, layout=layout_with_fr)
+```
+
+
+
+```{r}
+# Course Taking Likelihood
+
+transpose_affil<-t(affil)
+
+
+sts<- affil %*% transpose_affil
+```
+
+
+```{r}
+sororitynet_noimpute=graph_from_adjacency_matrix(
+  adjmatrix=sts, mode="directed")
+
+
+V(sororitynet_noimpute)[attrib$Status=="LTEL"]$color<-"red"
+V(sororitynet_noimpute)[attrib$Status=="STEL"]$color<-"orange"
+V(sororitynet_noimpute)[attrib$Status=="RFEP"]$color<-"yellow"
+V(sororitynet_noimpute)[attrib$Status=="Not-EL"]$color<-"green"
+pdf("anspasel.pdf")
+plot(sororitynet_noimpute, vertex.label=NA, vertex.size=4, 
+     edge.arrow.size=.2, edge.arrow.width=.2)
+```
+
+
+
+
+
+
+
+```{r}
+club_club = t(affil) %*% affil 
+student_student = affil %*% t(affil) 
+student_student[1:5, 1:5] 
+onemode=bipartite_projection(affil_net)
+club_net=onemode$proj2
+club_namesF=V(club_net)$name 
+matF=as_adjacency_matrix(graph=club_net, attr="weight", sparse=F)
+
+
+V(club_net)$label.color=rgb(0, 0, .2, .8)
+V(club_net)$label.cex=.5 #making labels a bit smaller 
+V(club_net)$size=6
+#setting the color and transparency of the clubs:
+V(club_net)$color=rgb(0, 0, 1, .3) 
+V(club_net)$frame.color=V(club_net)$color
+
+egalpha=log1p(E(club_net)$weight)/max(log1p(E(club_net)$weight))
+E(club_net)$color=rgb(.25, .75, 0, egalpha)
+
+
+pdf("magact_stdnt_actvts_clubs.pdf")
+plot(club_net, main="layout_with_lgl", layout=layout_with_lgl)
+plot(club_net, main="layout_with_fr", layout=layout_with_fr) 
+dev.off()
+```
+
+```{r}
+weights=E(club_net)$weight 
+scaled_weights=weights/sd(weights) 
+invscaled_weights=1/scaled_weights
+deg_normalweights=strength(club_net, mode="all") 
+deg_scaledweights=strength(club_net, mode="all", weights=scaled_weights) 
+deg_data=data.frame(deg_normalweights, deg_scaledweights)
+deg_noweight=degree(club_net, mode="all")
+cor(deg_scaledweights, deg_noweight) 
+close_invweights=closeness(club_net, weights=invscaled_weights)
+close_weights=closeness(club_net, weights=scaled_weights)
+deg_top10=order(deg_scaledweights, decreasing=T)[1:10] 
+toptenclubs=club_namesF[deg_top10]
+mat=as_adjacency_matrix(graph=club_net, attr="weight", sparse=F)
+
+V(club_net)$label.color=rgb(0, 0, .2, .8)
+V(club_net)$label.cex=.5 #making labels a bit smaller 
+V(club_net)$size=6
+#setting the color and transparency of the clubs:
+V(club_net)$color=rgb(0, 0, 1, .3) 
+V(club_net)$frame.color=V(club_net)$color 
+
+egalpha=log1p(E(club_net)$weight)/max(log1p(E(club_net)$weight))
+E(club_net)$color=rgb(.25, .75, 0, egalpha)
+
+pdf("magact_stdnt_actvts_clubs.pdf")
+plot(club_net, main="layout_with_lgl", layout=layout_with_lgl)
+plot(club_net, main="layout_with_fr", layout=layout_with_fr) 
+dev.off()
+
+```
+
+
+```{r}
+# Network <- Network[order(Network$StudentNumber),]
+
+# Create Network form
+NetEL <-Network %>% select(StudentNumber, Status)
+
+NetEL$N<-1
+NetEL <- NetEL[order(NetEL$StudentNumber),]
+
+length(which(duplicated(NetEL)))
+NetEL<-NetEL[!duplicated(NetEL),]
+
+NetEL<-NetEL %>%
+  pivot_wider(names_from = Status, values_from = N, values_fill = 0) # list(col_name = function_name)
+
+# Create Affil Variable
+
+of<-as.matrix(NetEL[,-c(1)])
+NetEL<-as.matrix(NetEL)
+rownames(of)=NetEL[,1]
+
+#Make transpose of of
+
+stsel<-t(of)
+
+Elmat<-of %*% stsel
+
+cor(c(Elmat), c(sts))
+
+# cor(Elmat, sts,use="everything",method=c("pearson"))
+
+```
